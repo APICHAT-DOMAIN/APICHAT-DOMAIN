@@ -1,6 +1,6 @@
 --[[========================================================
     ⚡ APICHAT DOMAIN ⚡
-    v2.6 - MAXIMUM CLEAN SMOOTH POTATO (ULTRA FLAT)
+    v2.7 - ULTRA SOLID FLAT COLOR (NO TEXTURE / PURE GREEN)
 ========================================================]]--
 
 local Players = game:GetService("Players")
@@ -116,9 +116,9 @@ local translations = {
         langBtnEn = "🇬🇧 Switch to English",
         langBtnTh = "🇹🇭 Switch to Thai",
         
-        fpsBoostTitle = "🚀 โหมดดินน้ำมันเรียบแบนราบ 100% (Ultra Clean Flat)",
-        fpsBoostToggle = "🚀 เปิดโหมดลดแลค (ลบลายทั้งหมด / แบนราบ / สว่างสะอาด)",
-        fpsBoostDesc = "🚀 ลบ Texture, Decal, Custom Mesh และแปลงทุกชิ้นส่วนเป็น SmoothPlastic สีเทาสว่าง เรียบเนียนขั้นสุด",
+        fpsBoostTitle = "🚀 โหมดสีเรียบไม่มีลวดลาย 100% (Solid Flat Color)",
+        fpsBoostToggle = "🚀 เปิดโหมดพื้นเรียบสีเดียว (ลบเท็กซ์เจอร์ / ปรับพื้นเขียวล้วน)",
+        fpsBoostDesc = "🚀 กำจัดลวดลายทั้งหมดบนพื้นผิว แปลงทุกชิ้นเป็น SmoothPlastic สีเพียวๆ ไม่มีลายกวนตา",
         
         interactTitle = "⚡ การเก็บของ",
         interactToggle = "⚡ หยิบของไว / E (บางแมพ)",
@@ -173,9 +173,9 @@ local translations = {
         langBtnEn = "🇬🇧 Switch to English",
         langBtnTh = "🇹🇭 Switch to Thai",
         
-        fpsBoostTitle = "🚀 Ultra Clean Flat Potato Mode",
-        fpsBoostToggle = "🚀 Enable Ultra Clean Flat (Removes All Textures / Pure Smooth)",
-        fpsBoostDesc = "🚀 Removes textures, decals, meshes and turns everything into flat bright gray SmoothPlastic.\n⚠️ Maximizes FPS.",
+        fpsBoostTitle = "🚀 Solid Flat Color Mode (No Textures)",
+        fpsBoostToggle = "🚀 Enable Solid Flat Color (Removes patterns / Pure colors)",
+        fpsBoostDesc = "🚀 Removes all surface patterns and textures, turning everything into pure flat SmoothPlastic colors.",
         
         interactTitle = "⚡ Auto Interaction",
         interactToggle = "⚡ Fast Interact / E (Some Games)",
@@ -1175,7 +1175,7 @@ task.spawn(function()
 end)
 
 --========================================================
--- SETTINGS PAGE (ULTRA CLEAN FLAT POTATO)
+-- SETTINGS PAGE (SOLID FLAT COLOR POTATO)
 --========================================================
 
 local settingsCard = createCard(pages.settings, "⚙️", "settingsTitle", 1, true)
@@ -1189,14 +1189,14 @@ fpsBoostControl = createToggle(
         boostFPSActive = v
         pcall(function()
             if v then
-                -- 1. ตั้งค่าแสงสว่างเคลียร์เต็มที่ มองเห็นชัดเจน
+                -- 1. ตั้งค่าแสงสว่างให้เคลียร์ ชัดเจน ไร้เงารบกวน
                 Lighting.GlobalShadows = false
                 Lighting.Brightness = 3
                 Lighting.ClockTime = 12
                 Lighting.FogEnd = 999999
                 Lighting.GeographicLatitude = 0
-                Lighting.Ambient = Color3.fromRGB(220, 220, 220)
-                Lighting.OutdoorAmbient = Color3.fromRGB(220, 220, 220)
+                Lighting.Ambient = Color3.fromRGB(230, 230, 230)
+                Lighting.OutdoorAmbient = Color3.fromRGB(230, 230, 230)
                 
                 for _, child in ipairs(Lighting:GetChildren()) do
                     if child:IsA("PostEffect") or child:IsA("Atmosphere") or child:IsA("Sky") or child:IsA("Clouds") then
@@ -1208,7 +1208,7 @@ fpsBoostControl = createToggle(
                     settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
                 end)
 
-                -- 2. เคลียร์น้ำใน Terrain ให้ใสเรียบแบน
+                -- 2. เคลียร์น้ำใน Terrain ให้ใสเรียบแบนไร้คลื่น
                 if Terrain then
                     Terrain.WaterWaveSize = 0
                     Terrain.WaterWaveTransparency = 1
@@ -1217,13 +1217,14 @@ fpsBoostControl = createToggle(
                     Terrain.Decoration = false
                 end
 
-                -- 3. ลบ Decal, Texture, Mesh และวัตถุที่ไม่จำเป็นออกทั้งหมด บังคับทุกชิ้นเป็น SmoothPlastic สีเทาสว่างแบนเรียบ
+                -- 3. ลบเท็กซ์เจอร์ ลวดลาย พื้นผิวDecal/Texture และบังคับวัตถุทุกชิ้นเป็นสีเรียบ SmoothPlastic
                 for _, obj in ipairs(Workspace:GetDescendants()) do
                     if obj:IsA("BasePart") then
                         obj.Material = Enum.Material.SmoothPlastic
                         obj.Reflectance = 0
                         obj.CastShadow = false
-                        obj.Color = Color3.fromRGB(215, 215, 215)
+                        -- ปรับพื้นหรือวัตถุด้านล่างให้เป็นสีเขียวสะอาดตาแบบไม่มีลาย (หรือปรับโทนสีพื้นผิวหลัก)
+                        obj.Color = Color3.fromRGB(120, 200, 120)
                     elseif obj:IsA("Decal") or obj:IsA("Texture") or obj:IsA("SpecialMesh") or obj:IsA("MeshPart") then
                         pcall(function() obj:Destroy() end)
                     elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Fire") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Beam") or obj:IsA("Explosion") then
@@ -1473,4 +1474,4 @@ task.spawn(function()
     end)
 end)
 
-print("⚡ APICHAT DOMAIN v2.6 Loaded Successfully!")
+print("⚡ APICHAT DOMAIN v2.7 Loaded Successfully!")
