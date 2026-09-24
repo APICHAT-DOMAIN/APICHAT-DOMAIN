@@ -1,6 +1,6 @@
 --[[========================================================
     ⚡ APICHAT DOMAIN ⚡
-    v7 - AUTO EGG FARM + DEEP FALL + EGG ESP
+    v7 - AUTO EGG FARM + DEEP FALL + EGG ESP (FLY HOME)
     (UI ใหม่ สไตล์เดียวกับสคริปล็อคเป้า)
 
     เมนู:
@@ -26,11 +26,13 @@ local DELAY = 0.1
 local COLLECT_TIMEOUT = 5
 local HEIGHT_OFFSET = 3
 
-local FALL_DEPTH = 5000
-local FALL_SPEED = 350
-local FALL_TIMEOUT = 6
-
 local HOME_WAIT = 0.2
+
+-- บินกลับบ้าน
+local FLY_SPEED = 1000      -- ความเร็วบิน (studs/วินาที) ถ้าโดนเตะให้ลดลง
+local VOID_MARGIN = 300    -- ระยะปลอดภัยเหนือความสูงที่เกมลบตัวละคร (กันตกแมพ)
+local FLY_HEIGHT = 80      -- บินสูงเหนือจุดบ้านเท่าไหร่ (กันชนสิ่งกีดขวาง)
+local FLY_TIMEOUT = 60     -- ถ้าบินนานเกินนี้ ให้วาปกลับแทน (กันค้าง)
 
 local ESP_MAX_DISTANCE = 1000
 local ESP_UPDATE_RATE = 0.5
@@ -1205,8 +1207,99 @@ local function endNoclip()
 end
 
 --========================================================
--- GO HOME
+-- FLY HOME + GO HOME
 --========================================================
+-- บินกลับไปที่จุดบ้านแบบเคลื่อนที่จริง (ไม่วาป)
+-- ขึ้นสูงก่อน → บินตรงไปเหนือจุดบ้าน → ลงมาจอด
+local function flyTo(targetCF)
+    local root = getRoot()
+    if not root then return false end
+
+    -- ปลดล็อกจากตอนตกใต้แมพ
+    root.Anchored = false
+    root.AssemblyLinearVelocity = Vector3.zero
+    root.AssemblyAngularVelocity = Vector3.zero
+
+    startNoclip()
+
+    local bv = Instance.new("BodyVelocity")
+    bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+    bv.Velocity = Vector3.zero
+    bv.Parent = root
+
+    local bg = Instance.new("BodyGyro")
+    bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+    bg.P = 1e5
+    bg.CFrame = root.CFrame
+    bg.Parent = root
+
+    local dest = targetCF.Position + Vector3.new(0, 2, 0)
+    local cruiseY = dest.Y + FLY_HEIGHT
+    local destroyY = workspace.FallenPartsDestroyHeight
+    local t0 = os.clock()
+    local arrived = false
+
+    while os.clock() - t0 < FLY_TIMEOUT do
+        root = getRoot()
+        if not root or not bv.Parent then break end
+
+        local pos = root.Position
+        local flat = Vector3.new(dest.X - pos.X, 0, dest.Z - pos.Z)
+
+        local dir
+        local speed = FLY_SPEED
+
+        if pos.Y < destroyY + VOID_MARGIN then
+            -- ใกล้ขอบล่างของแมพ: พุ่งขึ้นตรงๆ ก่อน กันโดนเกมลบตัว
+            dir = Vector3.new(0, 1, 0)
+        elseif flat.Magnitude > 10 then
+            if pos.Y < cruiseY - 5 then
+                -- ช่วงแรก: ขึ้นสูงก่อน (ค่อยๆ เอียงไปทางบ้าน)
+                dir = Vector3.new(flat.Unit.X * 0.3, 1, flat.Unit.Z * 0.3).Unit
+            else
+                dir = Vector3.new(flat.Unit.X, (cruiseY - pos.Y) / 20, flat.Unit.Z).Unit
+                -- ชะลอก่อนถึงเหนือจุดบ้าน กันบินเลยจุด
+                speed = math.clamp(flat.Magnitude * 4, 40, FLY_SPEED)
+            end
+        else
+            -- เหนือจุดบ้านแล้ว: ค่อยๆ ลงมาจอด
+            local down = dest - pos
+            if down.Magnitude < 3 then
+                arrived = true
+                break
+            end
+            dir = down.Unit
+            speed = math.clamp(down.Magnitude * 5, 15, 120)
+        end
+
+        bv.Velocity = dir * speed
+        bg.CFrame = CFrame.new(pos, pos + Vector3.new(dir.X, 0, dir.Z) + Vector3.new(0, 0.001, 0))
+        task.wait()
+    end
+
+    root = getRoot()
+    if root then
+        -- ล็อกตำแหน่งที่จุดบ้าน แล้วคืนการชนก่อนปล่อยแรงบิน (กันทะลุพื้นตอนลงจอด)
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+        root.CFrame = targetCF + Vector3.new(0, 2, 0)
+        endNoclip()
+        forceCollide()
+        task.wait(0.15)
+    end
+
+    pcall(function() bv:Destroy() end)
+    pcall(function() bg:Destroy() end)
+
+    root = getRoot()
+    if root then
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
+    end
+
+    return arrived
+end
+
 local function goHome()
     local root = getRoot()
     local t = 0
@@ -1218,15 +1311,12 @@ local function goHome()
     end
 
     if root and homeCFrame then
-        root.Anchored = false
-        root.AssemblyLinearVelocity = Vector3.zero
-        root.AssemblyAngularVelocity = Vector3.zero
-        root.CFrame = homeCFrame + Vector3.new(0, 2, 0)
+        flyTo(homeCFrame)
     end
 
     endNoclip()
 
-    -- ถ้ากลับบ้านแล้วตกทะลุ/โดนดีดออก ให้วาปกลับทันที (ไม่ต้องรอตกหลายรอบ)
+    -- ถ้าลงมาแล้วตกทะลุ/โดนดีดออก ให้วาปกลับ
     -- ออกจากลูปทันทีเมื่อยืนบนพื้นได้แล้ว
     if homeCFrame then
         local homePos = homeCFrame.Position
@@ -1239,7 +1329,7 @@ local function goHome()
             local hum = c and c:FindFirstChildOfClass("Humanoid")
 
             if r then
-                if (r.Position - homePos).Magnitude > 15 then
+                if (r.Position - homePos).Magnitude > 15 or r.Position.Y < workspace.FallenPartsDestroyHeight + 100 then
                     r.Anchored = false
                     r.AssemblyLinearVelocity = Vector3.zero
                     r.AssemblyAngularVelocity = Vector3.zero
@@ -1540,7 +1630,7 @@ local function collect(egg)
     if not root then return end
 
     local destroyY = workspace.FallenPartsDestroyHeight
-    local targetY = math.max(eggPos.Y - FALL_DEPTH, destroyY + 40)
+    local targetY = math.max(eggPos.Y - FALL_DEPTH, destroyY + VOID_MARGIN)
 
     local char = player.Character
     local humanoid = char and char:FindFirstChildOfClass("Humanoid")
