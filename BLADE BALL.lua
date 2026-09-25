@@ -1,6 +1,6 @@
 --[[========================================================
     ⚡ APICHAT DOMAIN ⚡
-    v3 - BLADE BALL AUTO PARRY + STARTUP SPLASH LOGO
+    v3.1 - BLADE BALL AUTO PARRY (PING COMPENSATED & FAST CLOSE-RANGE)
 
     เมนู:
     📊 หน้าหลัก | ⚔️ ออโต้ | ⚙️ ตั้งค่า
@@ -159,7 +159,7 @@ gui.Destroying:Connect(function()
 end)
 
 --========================================================
--- STARTUP CENTER LOGO SPLASH (โลโก้กลางหน้าจอก่อนเริ่ม)
+-- STARTUP CENTER LOGO SPLASH
 --========================================================
 local function showStartupSplash(onComplete)
     local splashFrame = new("Frame", {
@@ -199,7 +199,6 @@ local function showStartupSplash(onComplete)
         ZIndex = 101,
     }, splashFrame)
 
-    -- Animation In (ขยายขึ้นกึ่งกลาง)
     TweenService:Create(splashLogo, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
         Size = UDim2.new(0, 130, 0, 130),
         ImageTransparency = 0
@@ -208,7 +207,6 @@ local function showStartupSplash(onComplete)
     TweenService:Create(splashText, TweenInfo.new(0.6), {TextTransparency = 0}):Play()
 
     task.delay(1.6, function()
-        -- Animation Out (จางและหดลง)
         local fadeBg = TweenService:Create(splashFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             BackgroundTransparency = 1
         })
@@ -628,7 +626,12 @@ end)
 
 local mapName = "..."
 local frames = 0
-local function getPing() local ok, v = pcall(function() return StatsService.Network.ServerStatsItem["Data Ping"]:GetValue() end) return ok and math.floor(v) or 0 end
+local currentPing = 0
+
+local function getPing()
+    local ok, v = pcall(function() return StatsService.Network.ServerStatsItem["Data Ping"]:GetValue() end)
+    return ok and math.floor(v) or 50
+end
 
 local function refreshHome()
     statsInfo.Text = ("%s: %s\nUser: @%s\nID: %d"):format(tr("name"), player.DisplayName, player.Name, player.UserId)
@@ -641,15 +644,16 @@ task.spawn(function()
     refreshHome()
     while gui.Parent do
         task.wait(1)
+        currentPing = getPing()
         fpsLabel.Text = "🎮 FPS: " .. frames
-        pingLabel.Text = "📶 Ping: " .. getPing() .. " ms"
+        pingLabel.Text = "📶 Ping: " .. currentPing .. " ms"
         frames = 0
     end
 end)
 table.insert(conns, RunService.RenderStepped:Connect(function() frames = frames + 1 end))
 
 --========================================================
--- AUTO PAGE (BLADE BALL RED BALL + SPAM + SMOOTH MOVE)
+-- AUTO PAGE (OPTIMIZED AUTO PARRY LOGIC)
 --========================================================
 local autoCard = createCard(pages.auto, "⚔️", "card_auto", 1)
 
@@ -735,10 +739,32 @@ table.insert(conns, RunService.RenderStepped:Connect(function()
 
     local ball = getTargetBall()
     if ball and isBallTargetingMe(ball) then
-        local distance = (ball.Position - root.Position).Magnitude
+        local ballPos = ball.Position
+        local rootPos = root.Position
+        local distance = (ballPos - rootPos).Magnitude
         local velocity = ball.Velocity.Magnitude
 
-        if distance <= HIT_RANGE or (distance / math.max(velocity, 1)) < 0.35 then 
+        -- คำนวณ Ping เป็นวินาที
+        local pingSeconds = math.clamp(currentPing / 1000, 0.03, 0.3)
+        
+        -- เวลาที่บอลจะถึงตัว (Time to Impact)
+        local timeToImpact = distance / math.max(velocity, 1)
+
+        -- เกณฑ์เวลาตอบสนองแบบชดเชย Ping (ยิ่งปิงสูงยิ่งตีล่วงหน้าเร็วขึ้น)
+        local dynamicThreshold = 0.35 + (pingSeconds * 1.2)
+
+        -- ตรวจสอบว่าบอลกำลังมุ่งหน้ามาหาเราหรือไม่
+        local isMovingTowards = true
+        if velocity > 5 then
+            local dirToPlayer = (rootPos - ballPos).Unit
+            local ballDir = ball.Velocity.Unit
+            isMovingTowards = ballDir:Dot(dirToPlayer) > -0.2
+        end
+
+        -- ระบบตีทันทีเมื่ออยู่ระยะประชิด (< 20 studs) หรือเมื่อเข้าเงื่อนไขเวลาตอบสนอง
+        local isCloseRange = distance <= math.max(HIT_RANGE, 20)
+
+        if (timeToImpact <= dynamicThreshold or isCloseRange) and isMovingTowards then 
             autoStatusLabel.Text = tr("status_hitting")
             autoStatusLabel.TextColor3 = Theme.Accent
             
@@ -748,7 +774,8 @@ table.insert(conns, RunService.RenderStepped:Connect(function()
                 if not isParrying then
                     isParrying = true
                     doParry()
-                    task.delay(0.25, function() isParrying = false end)
+                    -- ลด Delay การกดลงเหลือ 0.12 วินาที เพื่อให้รับบอลสวนระยะใกล้ได้ทัน
+                    task.delay(0.12, function() isParrying = false end)
                 end
             end
         end
@@ -799,7 +826,6 @@ afkToggle.Frame.LayoutOrder = 2
 --========================================================
 applyLang()
 
--- แสดงโลโก้กลางหน้าจอก่อน แล้วค่อยแสดงแบนเนอร์กับหน้าต่างหลัก
 showStartupSplash(function()
     showWelcomeBanner()
     showMain()
